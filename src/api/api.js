@@ -2,42 +2,43 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+console.log('🔗 API URL:', API_URL);
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 80000,
+  timeout: 60000,
 });
 
-// Перехватчик запросов - добавляет JWT токен
+// Перехватчик запросов
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('adminToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`📤 ${config.method.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Перехватчик ответов - обработка 401
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ ${response.config.url} - ${response.status}`);
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('adminToken');
-      localStorage.removeItem('adminData');
-      window.location.href = '/';
-    }
+    console.error(`❌ Ошибка: ${error.message}`);
     return Promise.reject(error);
   }
 );
 
 export default api;
 
-// ============ API Методы ============
+// ============ API МЕТОДЫ ============
 
 // ----- Аутентификация -----
 export const authAPI = {
@@ -91,11 +92,6 @@ export const updateOrderStatus = async (id, status) => {
 // ----- Пользователи -----
 export const getUsers = async () => {
   const response = await api.get('/users');
-  return response.data;
-};
-
-export const updateUserRole = async (id, role) => {
-  const response = await api.patch(`/users/${id}/role`, { role });
   return response.data;
 };
 

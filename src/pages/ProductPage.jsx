@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { FaCheck, FaShoppingCart, FaHeart, FaRegHeart, FaMinus, FaPlus, FaArrowLeft } from 'react-icons/fa';
 import { getProduct } from '../api/api';
 
 const ProductPage = () => {
@@ -9,9 +11,12 @@ const ProductPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
     loadProduct();
+    window.scrollTo(0, 0);
   }, [id]);
 
   const loadProduct = async () => {
@@ -29,48 +34,122 @@ const ProductPage = () => {
 
   const addToCart = () => {
     if (!product) return;
-    
+
+    if (!product.inStock) {
+      toast.error('❌ Товар временно отсутствует');
+      return;
+    }
+
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     const productId = product._id || product.id;
     const existing = cart.find(item => (item.id || item._id) === productId);
-    
+
     if (existing) {
-      existing.qty += quantity;
+      existing.qty = (existing.qty || 1) + quantity;
     } else {
-      cart.push({ 
-        ...product, 
+      cart.push({
+        ...product,
         id: productId,
         _id: productId,
-        qty: quantity 
+        qty: quantity,
       });
     }
-    
+
     localStorage.setItem('cart', JSON.stringify(cart));
-    alert(`✅ Товар "${product.name}" добавлен в корзину!`);
+
+    // Красивое уведомление
+    toast.custom((t) => (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          background: '#2a2a2a',
+          color: '#fff',
+          padding: '14px 20px',
+          borderRadius: '12px',
+          border: '1px solid #ff6b35',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          animation: 'slideIn 0.3s ease',
+          maxWidth: '380px',
+          width: '100%',
+        }}
+      >
+        <div style={{
+          background: '#ff6b35',
+          borderRadius: '50%',
+          width: '36px',
+          height: '36px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '18px',
+          flexShrink: 0,
+        }}>
+          <FaCheck />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: '600', fontSize: '14px' }}>
+            ✅ Добавлено в корзину!
+          </div>
+          <div style={{ color: '#ff6b35', fontWeight: '500', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {product.name}
+          </div>
+          <div style={{ color: '#888', fontSize: '12px' }}>
+            {quantity} × {product.price} ₽ = {quantity * product.price} ₽
+          </div>
+        </div>
+        <div style={{ fontSize: '24px', opacity: 0.3, flexShrink: 0 }}>
+          <FaShoppingCart />
+        </div>
+      </div>
+    ), {
+      duration: 3000,
+      position: 'bottom-right',
+    });
+
+    // Обновляем счетчик
+    window.dispatchEvent(new Event('cartUpdate'));
   };
 
   const buyNow = () => {
     addToCart();
-    navigate('/cart');
+    setTimeout(() => navigate('/cart'), 500);
+  };
+
+  const toggleFavorite = () => {
+    setIsFavorite(!isFavorite);
+    toast.success(isFavorite ? '❌ Удалено из избранного' : '❤️ Добавлено в избранное', {
+      duration: 1500,
+    });
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
   };
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <p>⏳ Загрузка товара...</p>
+      <div className="product-loading">
+        <div className="loading-spinner"></div>
+        <p>Загрузка товара...</p>
       </div>
     );
   }
 
   if (error || !product) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+      <div className="product-error">
+        <div style={{ fontSize: '64px', marginBottom: '16px' }}>😕</div>
         <h2>Товар не найден</h2>
         <p style={{ color: '#888' }}>Возможно, товар был удалён или вы перешли по неверной ссылке</p>
-        <Link to="/catalog" style={{
+        <Link to="/catalog" className="btn-primary" style={{
           display: 'inline-block',
-          marginTop: '16px',
+          marginTop: '20px',
           padding: '12px 32px',
           background: '#ff6b35',
           color: '#fff',
@@ -85,275 +164,188 @@ const ProductPage = () => {
   }
 
   const productId = product._id || product.id;
+  const images = product.images?.length > 0 ? product.images : [product.image];
+  const validImages = images.filter(img => img);
 
   return (
-    <div className="container" style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 16px' }}>
+    <div className="product-page">
       {/* Хлебные крошки */}
-      <div style={{ 
-        fontSize: '14px', 
-        color: '#888', 
-        marginBottom: '20px',
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'center',
-      }}>
-        <Link to="/" style={{ color: '#888', textDecoration: 'none' }}>Главная</Link>
+      <div className="product-breadcrumb">
+        <Link to="/">Главная</Link>
         <span>/</span>
-        <Link to="/catalog" style={{ color: '#888', textDecoration: 'none' }}>Каталог</Link>
+        <Link to="/catalog">Каталог</Link>
         <span>/</span>
-        <span style={{ color: '#fff' }}>{product.name}</span>
+        <span className="current">{product.name}</span>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '40px',
-        background: '#2a2a2a',
-        padding: '30px',
-        borderRadius: '12px',
-        border: '1px solid #3d3d3d',
-      }}>
-        {/* Фото товара */}
-        <div>
-          <div style={{
-            background: '#1a1a1a',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            height: '400px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            {product.image ? (
-              <img 
-                src={product.image} 
-                alt={product.name} 
-                style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  objectFit: 'cover',
+      <div className="product-wrapper">
+        {/* Галерея */}
+        <div className="product-gallery">
+          <div className="product-main-image">
+            {validImages.length > 0 ? (
+              <img
+                src={validImages[selectedImage]}
+                alt={product.name}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '📦';
                 }}
               />
             ) : (
               <span style={{ fontSize: '80px' }}>📦</span>
             )}
+            {!product.inStock && (
+              <div className="product-stock-overlay">Нет в наличии</div>
+            )}
           </div>
-          
-          {/* Миниатюры (если есть) */}
-          {product.images && product.images.length > 0 && (
-            <div style={{
-              display: 'flex',
-              gap: '8px',
-              marginTop: '12px',
-            }}>
-              {product.images.slice(0, 4).map((img, i) => (
-                <img
-                  key={i}
-                  src={img}
-                  alt={`${product.name} ${i + 1}`}
-                  style={{
-                    width: '60px',
-                    height: '60px',
-                    objectFit: 'cover',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    border: '1px solid #444',
-                  }}
-                />
+
+          {validImages.length > 1 && (
+            <div className="product-thumbnails">
+              {validImages.map((img, index) => (
+                <button
+                  key={index}
+                  className={`thumbnail ${selectedImage === index ? 'active' : ''}`}
+                  onClick={() => setSelectedImage(index)}
+                >
+                  <img src={img} alt={`${product.name} ${index + 1}`} />
+                </button>
               ))}
             </div>
           )}
         </div>
 
         {/* Информация о товаре */}
-        <div>
-          <div style={{ 
-            fontSize: '12px', 
-            color: '#888', 
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            marginBottom: '8px',
-          }}>
-            {product.brand || 'Без бренда'}
+        <div className="product-info-block">
+          <div className="product-header">
+            <div className="product-brand-category">
+              <span className="brand">{product.brand || 'Без бренда'}</span>
+              {product.category && (
+                <>
+                  <span className="separator">•</span>
+                  <span className="category">{product.category}</span>
+                </>
+              )}
+            </div>
+
+            <button
+              className="product-favorite-btn"
+              onClick={toggleFavorite}
+              aria-label="В избранное"
+            >
+              {isFavorite ? <FaHeart /> : <FaRegHeart />}
+            </button>
           </div>
-          
-          <h1 style={{ fontSize: '28px', marginBottom: '8px' }}>{product.name}</h1>
-          
-          {/* Рейтинг */}
+
+          <h1 className="product-title">{product.name}</h1>
+
           {product.rating > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <span style={{ color: '#ff9800' }}>⭐ {product.rating}</span>
-              <span style={{ color: '#888', fontSize: '14px' }}>
-                ({product.reviewsCount || 0} отзывов)
-              </span>
+            <div className="product-rating-block">
+              <div className="stars">
+                {'⭐'.repeat(Math.floor(product.rating))}
+                {product.rating % 1 > 0 && '⭐'}
+              </div>
+              <span className="rating-value">{product.rating}</span>
+              <span className="reviews-count">({product.reviewsCount || 0} отзывов)</span>
             </div>
           )}
 
-          {/* Цена */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            marginBottom: '16px',
-            padding: '16px',
-            background: '#1a1a1a',
-            borderRadius: '8px',
-          }}>
-            <span style={{ fontSize: '32px', fontWeight: '700', color: '#ff6b35' }}>
-              {product.price} ₽
-            </span>
-            <span style={{
-              fontSize: '14px',
-              color: product.inStock ? '#4caf50' : '#f44336',
-              fontWeight: '600',
-            }}>
+          <div className="product-price-block">
+            <span className="price">{product.price} ₽</span>
+            <span className={`stock-status ${product.inStock ? 'in-stock' : 'out-of-stock'}`}>
               {product.inStock ? '✅ В наличии' : '❌ Нет в наличии'}
             </span>
+            {product.inStock && product.stockQuantity < 10 && (
+              <span className="stock-warning">Осталось {product.stockQuantity} шт.</span>
+            )}
           </div>
 
-          {/* Описание */}
           {product.description && (
-            <div style={{ marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '16px', marginBottom: '8px', color: '#888' }}>Описание</h3>
-              <p style={{ color: '#ccc', lineHeight: '1.6' }}>{product.description}</p>
+            <div className="product-description">
+              <h3>Описание</h3>
+              <p>{product.description}</p>
             </div>
           )}
 
-          {/* Характеристики */}
-          <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '8px', color: '#888' }}>Характеристики</h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '4px 16px',
-              background: '#1a1a1a',
-              padding: '12px 16px',
-              borderRadius: '8px',
-            }}>
+          <div className="product-characteristics">
+            <h3>Характеристики</h3>
+            <div className="chars-grid">
               {product.nicotine > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span style={{ color: '#888' }}>Крепость:</span>
-                  <span>{product.nicotine} мг</span>
+                <div className="char-item">
+                  <span className="char-label">Крепость</span>
+                  <span className="char-value">{product.nicotine} мг</span>
                 </div>
               )}
               {product.flavor && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span style={{ color: '#888' }}>Вкус:</span>
-                  <span>{product.flavor}</span>
+                <div className="char-item">
+                  <span className="char-label">Вкус</span>
+                  <span className="char-value">{product.flavor}</span>
                 </div>
               )}
               {product.weight > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span style={{ color: '#888' }}>Вес:</span>
-                  <span>{product.weight} г</span>
+                <div className="char-item">
+                  <span className="char-label">Вес</span>
+                  <span className="char-value">{product.weight} г</span>
                 </div>
               )}
-              {product.category && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span style={{ color: '#888' }}>Категория:</span>
-                  <span>{product.category}</span>
+              {product.brand && (
+                <div className="char-item">
+                  <span className="char-label">Бренд</span>
+                  <span className="char-value">{product.brand}</span>
+                </div>
+              )}
+              {product.createdAt && (
+                <div className="char-item">
+                  <span className="char-label">Добавлен</span>
+                  <span className="char-value">{formatDate(product.createdAt)}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Количество и кнопки */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-              <span style={{ color: '#888' }}>Количество:</span>
-              <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  background: '#444',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#fff',
-                  fontSize: '18px',
-                  cursor: 'pointer',
-                }}
-              >
-                −
-              </button>
-              <span style={{ minWidth: '32px', textAlign: 'center', fontWeight: '600' }}>
-                {quantity}
-              </span>
-              <button
-                onClick={() => setQuantity(quantity + 1)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  background: '#444',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#fff',
-                  fontSize: '18px',
-                  cursor: 'pointer',
-                }}
-              >
-                +
-              </button>
+          <div className="product-actions">
+            <div className="quantity-selector">
+              <label>Количество</label>
+              <div className="quantity-controls">
+                <button
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  disabled={quantity <= 1}
+                >
+                  <FaMinus />
+                </button>
+                <span>{quantity}</span>
+                <button
+                  onClick={() => setQuantity(quantity + 1)}
+                  disabled={!product.inStock || (product.stockQuantity && quantity >= product.stockQuantity)}
+                >
+                  <FaPlus />
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="action-buttons">
               <button
+                className="btn-add-to-cart"
                 onClick={addToCart}
                 disabled={!product.inStock}
-                style={{
-                  flex: 1,
-                  padding: '14px 24px',
-                  background: product.inStock ? '#ff6b35' : '#444',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: product.inStock ? 'pointer' : 'not-allowed',
-                  opacity: product.inStock ? 1 : 0.5,
-                  minWidth: '150px',
-                }}
               >
-                🛒 В корзину
+                <FaShoppingCart /> Добавить в корзину
               </button>
               <button
+                className="btn-buy-now"
                 onClick={buyNow}
                 disabled={!product.inStock}
-                style={{
-                  flex: 1,
-                  padding: '14px 24px',
-                  background: product.inStock ? '#4caf50' : '#444',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: product.inStock ? 'pointer' : 'not-allowed',
-                  opacity: product.inStock ? 1 : 0.5,
-                  minWidth: '150px',
-                }}
               >
-                🔥 Купить сейчас
+                Купить сейчас
               </button>
             </div>
           </div>
 
-          {/* Кнопка назад */}
           <button
+            className="btn-back"
             onClick={() => navigate('/catalog')}
-            style={{
-              marginTop: '16px',
-              padding: '10px 20px',
-              background: 'transparent',
-              color: '#888',
-              border: '1px solid #444',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              width: '100%',
-            }}
           >
-            ← Вернуться в каталог
+            <FaArrowLeft /> Вернуться в каталог
           </button>
         </div>
       </div>

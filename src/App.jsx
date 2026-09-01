@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { getProducts } from './api/api';
 
 import HomePage from './pages/HomePage';
@@ -24,6 +25,12 @@ function AppContent() {
     loadProducts();
     loadCart();
     checkAdmin();
+
+    // Слушаем обновления корзины
+    window.addEventListener('cartUpdate', loadCart);
+    return () => {
+      window.removeEventListener('cartUpdate', loadCart);
+    };
   }, []);
 
   const loadProducts = async () => {
@@ -42,10 +49,13 @@ function AppContent() {
       const saved = localStorage.getItem('cart');
       if (saved) {
         const items = JSON.parse(saved);
-        setCartCount(items.reduce((sum, item) => sum + item.qty, 0));
+        setCartCount(items.reduce((sum, item) => sum + (item.qty || 1), 0));
+      } else {
+        setCartCount(0);
       }
     } catch (e) {
       console.error('Ошибка загрузки корзины:', e);
+      setCartCount(0);
     }
   };
 
@@ -57,14 +67,14 @@ function AppContent() {
   const handleLogoClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const newCount = secretClicks + 1;
     setSecretClicks(newCount);
-    
+
     if (clickTimer) {
       clearTimeout(clickTimer);
     }
-    
+
     const timer = setTimeout(() => {
       if (newCount >= 5) {
         setSecretClicks(0);
@@ -90,33 +100,65 @@ function AppContent() {
       setSecretClicks(0);
       setClickTimer(null);
     }, 1000);
-    
+
     setClickTimer(timer);
   };
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         minHeight: '100vh',
         background: '#1a1a1a',
         color: '#fff',
         fontSize: '18px',
+        padding: '20px',
       }}>
-        ⏳ Загрузка...
+        <div style={{ fontSize: '40px', marginBottom: '16px' }}>⏳</div>
+        <p>Загрузка магазина...</p>
       </div>
     );
   }
 
   return (
     <div className="app">
+      {/* Toaster для уведомлений */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#2a2a2a',
+            color: '#fff',
+            border: '1px solid #ff6b35',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            maxWidth: '400px',
+          },
+          success: {
+            icon: '✅',
+          },
+          error: {
+            icon: '❌',
+            style: {
+              border: '1px solid #f44336',
+            },
+          },
+        }}
+      />
+
       {/* ===== ХЕДЕР ===== */}
       <header className="header">
         <div className="container">
           <div className="header-content">
-            <div className="logo" onClick={handleLogoClick} title="1 клик - на главную, 5 кликов - админ-панель">
+            <div
+              className="logo"
+              onClick={handleLogoClick}
+              title="1 клик - на главную, 5 кликов - админ-панель"
+            >
               <span className="logo-icon">💨</span>
               <span className="logo-text">Nicotine Shop</span>
               {isAdmin && <span className="logo-badge">АДМИН</span>}
@@ -138,22 +180,24 @@ function AppContent() {
       </header>
 
       {/* ===== ОСНОВНОЙ КОНТЕНТ ===== */}
-      <main style={{ flex: 1, padding: '24px 0' }}>
-        <Routes>
-          <Route path="/" element={<HomePage products={products} />} />
-          <Route path="/catalog" element={<Catalog products={products} />} />
-          <Route path="/product/:id" element={<ProductPage />} />
-          <Route path="/cart" element={<Cart onCartUpdate={loadCart} />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route 
-            path="/admin/*" 
-            element={
-              <ProtectedRoute>
-                <Admin products={products} onRefresh={loadProducts} />
-              </ProtectedRoute>
-            } 
-          />
-        </Routes>
+      <main className="main-content">
+        <div className="container">
+          <Routes>
+            <Route path="/" element={<HomePage products={products} />} />
+            <Route path="/catalog" element={<Catalog products={products} />} />
+            <Route path="/product/:id" element={<ProductPage />} />
+            <Route path="/cart" element={<Cart onCartUpdate={loadCart} />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Admin products={products} onRefresh={loadProducts} />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </div>
       </main>
 
       {/* ===== ФУТЕР ===== */}
