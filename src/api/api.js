@@ -7,7 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: 80000,
 });
 
 // Перехватчик запросов - добавляет JWT токен
